@@ -1,0 +1,19 @@
+/target/
+
+# Логи
+*.log
+*.log.*
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+
+# Локальные настройки
+application-local.properties
