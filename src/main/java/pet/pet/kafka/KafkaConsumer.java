@@ -1,26 +1,31 @@
 package pet.pet.kafka;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-import pet.pet.model.Message;
-import pet.pet.repository.MessageRepository;
+import pet.pet.controller.ChatMessagePayload;
 import pet.pet.websocket.WebSocketController;
 
 @Component
 public class KafkaConsumer {
 
-    private final MessageRepository messageRepository;
     private final WebSocketController webSocketController;
+    private final ObjectMapper objectMapper;
 
-    public KafkaConsumer(MessageRepository messageRepository, WebSocketController webSocketController) {
-        this.messageRepository = messageRepository;
+    public KafkaConsumer(WebSocketController webSocketController, ObjectMapper objectMapper) {
         this.webSocketController = webSocketController;
+        this.objectMapper = objectMapper;
     }
 
     @KafkaListener(topics = "${kafka.topic.main}", groupId = "my-group")
-    public void listen(String message) {
-        System.out.println(" Получено сообщение от Kafka: " + message);
-        messageRepository.save(new Message(message));
-        webSocketController.sendMessage(message);
+    public void listen(String jsonMessage) {
+        System.out.println("📥 Получено JSON-сообщение от Kafka: " + jsonMessage);
+        try {
+            ChatMessagePayload payload = objectMapper.readValue(jsonMessage, ChatMessagePayload.class);
+            webSocketController.broadcastMessageToRoom(payload.getRoomId(), payload);
+        } catch (JsonProcessingException e) {
+            System.err.println("Ошибка при десериализации сообщения из JSON: " + e.getMessage());
+        }
     }
 }

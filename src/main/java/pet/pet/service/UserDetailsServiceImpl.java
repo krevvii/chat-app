@@ -1,11 +1,15 @@
 package pet.pet.service;
 
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.*;
 import org.springframework.stereotype.Service;
 import pet.pet.model.User;
 import pet.pet.repository.UserRepository;
+import pet.pet.security.CustomUserDetails;
 
-import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class UserDetailsServiceImpl implements UserDetailsService {
@@ -22,10 +26,15 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             .findByUsername(username)
             .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
-        return new org.springframework.security.core.userdetails.User(
+        List<GrantedAuthority> authoreties = user.getRoles().stream()
+            .map(SimpleGrantedAuthority::new)
+            .collect(Collectors.toList());
+
+        return new CustomUserDetails(
+            user.getId(),
             user.getUsername(),
             user.getPassword(),
-            Collections.emptyList() // роли
+            authoreties
         );
     }
 }

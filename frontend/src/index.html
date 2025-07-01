@@ -2,16 +2,228 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>WebSocket Чат</title>
+    <title>Real-Time Chat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #f0f2f5; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); width: 90%; max-width: 800px; margin-top: 20px; }
+        #auth-container, #chat-container { display: flex; flex-direction: column; gap: 10px; }
+        input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 8px 12px; border: none; background-color: #007bff; color: white; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        #chat-container { display: none; } /* Скрыт по умолчанию */
+        #chat-layout { display: flex; gap: 20px; }
+        #rooms-list { width: 30%; border-right: 1px solid #ccc; padding-right: 20px; }
+        #messages-area { width: 70%; height: 400px; overflow-y: scroll; border: 1px solid #eee; padding: 10px; }
+        .room-item { padding: 10px; cursor: pointer; border-radius: 4px; }
+        .room-item:hover, .room-item.active { background-color: #e9ecef; }
+        .message { margin-bottom: 10px; }
+        .message .author { font-weight: bold; }
+    </style>
 </head>
 <body>
-    <h1>Мини-чат</h1>
 
-    <div id="chat"></div>
+    <div id="auth-container" class="container">
+        <h2>Регистрация</h2>
+        <input type="text" id="reg-username" placeholder="Имя пользователя">
+        <input type="password" id="reg-password" placeholder="Пароль">
+        <button onclick="register()">Зарегистрироваться</button>
+        <hr>
+        <h2>Вход</h2>
+        <input type="text" id="login-username" placeholder="Имя пользователя">
+        <input type="password" id="login-password" placeholder="Пароль">
+        <button onclick="login()">Войти</button>
+    </div>
 
-    <input type="text" id="messageInput" placeholder="Введите сообщение..." />
-    <button onclick="sendMessage()">Отправить</button>
+    <div id="chat-container" class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 id="welcome-message">Чат</h2>
+            <button onclick="logout()">Выйти</button>
+        </div>
+        <hr>
+        <div id="create-room-area">
+             <input type="text" id="room-name" placeholder="Название новой комнаты">
+             <button onclick="createRoom()">Создать комнату</button>
+        </div>
+        <hr>
+        <div id="chat-layout">
+            <div id="rooms-list">
+                <h3>Комнаты</h3>
+                <ul id="rooms-ul" style="list-style-type: none; padding: 0;"></ul>
+            </div>
+            <div id="chat-window" style="width: 70%;">
+                <div id="messages-area"></div>
+                <div id="message-form" style="display: flex; gap: 10px; margin-top: 10px;">
+                    <input type="text" id="message-text" placeholder="Введите сообщение..." style="flex-grow: 1;">
+                    <button onclick="sendMessage()">Отправить</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    <script type="module" src="./main.js"></script>
+<script>
+    // Глобальные переменные для хранения состояния
+    let token = null;
+    let stompClient = null;
+    let currentSubscription = null;
+    let activeRoomId = null;
+    const apiUrl = 'http://localhost:8080';
+
+    // --- ЛОГИКА АУТЕНТИФИКАЦИИ ---
+
+    async function register() {
+        const username = document.getElementById('reg-username').value;
+        const password = document.getElementById('reg-password').value;
+        const response = await fetch(`${apiUrl}/public/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        alert(await response.text());
+    }
+
+    async function login() {
+        const username = document.getElementById('login-username').value;
+        const password = document.getElementById('login-password').value;
+        const response = await fetch(`${apiUrl}/public/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            token = data.token;
+            localStorage.setItem('jwtToken', token);
+            document.getElementById('auth-container').style.display = 'none';
+            document.getElementById('chat-container').style.display = 'flex';
+            document.getElementById('welcome-message').innerText = `Чат (Вы вошли как: ${username})`;
+            connectWebSocket();
+            fetchRooms();
+        } else {
+            alert(await response.text());
+        }
+    }
+    
+    function logout() {
+        token = null;
+        localStorage.removeItem('jwtToken');
+        if (stompClient) {
+            stompClient.disconnect();
+        }
+        document.getElementById('auth-container').style.display = 'flex';
+        document.getElementById('chat-container').style.display = 'none';
+    }
+
+
+    // --- ЛОГИКА РАБОТЫ С КОМНАТАМИ И СООБЩЕНИЯМИ ---
+
+    async function fetchRooms() {
+        const response = await fetch(`${apiUrl}/api/rooms`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const rooms = await response.json();
+        const roomsUl = document.getElementById('rooms-ul');
+        roomsUl.innerHTML = '';
+        rooms.forEach(room => {
+            const li = document.createElement('li');
+            li.innerText = room.name;
+            li.className = 'room-item';
+            li.onclick = () => selectRoom(room.id, li);
+            roomsUl.appendChild(li);
+        });
+    }
+    
+    async function createRoom() {
+        const roomName = document.getElementById('room-name').value;
+        if (!roomName) return;
+        const response = await fetch(`${apiUrl}/api/rooms`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ name: roomName })
+        });
+        alert(await response.text());
+        fetchRooms(); // Обновляем список комнат
+        document.getElementById('room-name').value = '';
+    }
+
+    async function sendMessage() {
+        const content = document.getElementById('message-text').value;
+        if (!content || !activeRoomId) return;
+
+        await fetch(`${apiUrl}/api/rooms/${activeRoomId}/messages`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ content })
+        });
+        document.getElementById('message-text').value = '';
+    }
+    
+    function selectRoom(roomId, roomElement) {
+        activeRoomId = roomId;
+        document.getElementById('messages-area').innerHTML = ''; // Очищаем чат
+        
+        // Подсвечиваем активную комнату
+        document.querySelectorAll('.room-item').forEach(el => el.classList.remove('active'));
+        roomElement.classList.add('active');
+
+        // Отписываемся от старой комнаты и подписываемся на новую
+        if (currentSubscription) {
+            currentSubscription.unsubscribe();
+        }
+        currentSubscription = stompClient.subscribe(`/topic/room/${roomId}`, (message) => {
+            const payload = JSON.parse(message.body);
+            displayMessage(payload.authorUsername, payload.content);
+        });
+    }
+    
+    function displayMessage(author, content) {
+        const messagesArea = document.getElementById('messages-area');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message';
+        messageDiv.innerHTML = `<span class="author">${author}:</span> <span class="content">${content}</span>`;
+        messagesArea.appendChild(messageDiv);
+        messagesArea.scrollTop = messagesArea.scrollHeight; // Прокрутка вниз
+    }
+
+    // --- ЛОГИКА WEBSOCKET ---
+
+    function connectWebSocket() {
+        const socket = new SockJS(`${apiUrl}/ws`);
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, function (frame) {
+            console.log('Connected: ' + frame);
+        }, function(error) {
+            console.error('STOMP error: ' + error);
+        });
+    }
+    
+    // При загрузке страницы проверяем, есть ли токен
+    window.onload = () => {
+        const storedToken = localStorage.getItem('jwtToken');
+        if (storedToken) {
+            token = storedToken;
+            // Попытка получить имя пользователя из токена (упрощенно)
+            try {
+                const username = JSON.parse(atob(token.split('.')[1])).sub;
+                document.getElementById('auth-container').style.display = 'none';
+                document.getElementById('chat-container').style.display = 'flex';
+                document.getElementById('welcome-message').innerText = `Чат (Вы вошли как: ${username})`;
+                connectWebSocket();
+                fetchRooms();
+            } catch(e) {
+                logout(); // Если токен невалидный
+            }
+        }
+    }
+</script>
+
 </body>
 </html>

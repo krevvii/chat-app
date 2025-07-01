@@ -1,6 +1,8 @@
 package pet.pet.model;
 
 import jakarta.persistence.*;
+
+import java.util.HashSet;
 import java.util.Set;
 
 @Entity
@@ -28,7 +30,8 @@ public class User {
         this.roles = roles;
     }
 
-    // геттеры и сеттеры
+    @ManyToMany(mappedBy = "members", fetch = FetchType.LAZY)
+    private Set<ChatRoom> chatRooms = new HashSet<>();
 
     public Long getId() {
         return id;
@@ -60,5 +63,13 @@ public class User {
 
     public void setRoles(Set<String> roles) {
         this.roles = roles;
+    }
+
+    public Set<ChatRoom> getChatRooms(){
+        return chatRooms;
+    }
+
+    public void setChatRooms(Set<ChatRoom> chatRooms) {
+        this.chatRooms = chatRooms;
     }
 }

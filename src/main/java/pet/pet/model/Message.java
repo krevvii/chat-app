@@ -17,6 +17,10 @@ public class Message {
     @JoinColumn(name = "author_id", nullable = false)
     private User author;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "chatroom_id", nullable = false)
+    private ChatRoom chatRoom;
+
     public Message() {
     }
 
@@ -45,5 +49,13 @@ public class Message {
 
     public void setContent(String content) {
         this.content = content;
+    }
+
+    public ChatRoom getChatRoom(){
+        return chatRoom;
+    }
+
+    public void setChatRoom(ChatRoom chatRoom){
+        this.chatRoom = chatRoom;
     }
 }

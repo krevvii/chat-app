@@ -12,7 +12,9 @@ public class WebSocketController {
         this.messagingTemplate = messagingTemplate;
     }
 
-    public void sendMessage(String message) {
-        messagingTemplate.convertAndSend("/topic/messages", message);
-    }
+    public void broadcastMessageToRoom(Long roomId, Object messagePayload) {
+        String destination = "/topic/room/" + roomId;
+        messagingTemplate.convertAndSend(destination, messagePayload);
+}
+
 }
