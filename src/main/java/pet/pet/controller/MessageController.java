@@ -9,6 +9,7 @@ import pet.pet.model.User;
 import pet.pet.repository.UserRepository;
 import pet.pet.security.CustomUserDetails;
 import pet.pet.service.MessageService;
+import jakarta.validation.Valid;
 
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -34,7 +35,7 @@ public class MessageController {
     @PostMapping("/{roomId}/messages")
     public ResponseEntity<String> postMessage(
             @PathVariable Long roomId,
-            @RequestBody MessageRequest messageRequest,
+            @Valid @RequestBody MessageRequest messageRequest,
             @AuthenticationPrincipal CustomUserDetails currentUser) {
 
         try {

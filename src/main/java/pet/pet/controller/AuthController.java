@@ -9,6 +9,9 @@ import org.springframework.security.core.GrantedAuthority;
 import pet.pet.security.CustomUserDetails;
 import pet.pet.security.JwtTokenProvider;
 import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.validation.Valid;
+
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -65,7 +68,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<String> registerUser(@RequestBody RegistrationRequest registrationRequest) {
+    public ResponseEntity<String> registerUser(@Valid @RequestBody RegistrationRequest registrationRequest) {
         try {
             userService.register(registrationRequest);
             return ResponseEntity

@@ -2,11 +2,14 @@ package pet.pet.kafka;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import pet.pet.controller.ChatMessagePayload;
 import pet.pet.websocket.WebSocketController;
 
+@Profile("kafka")
 @Component
 public class KafkaConsumer {
 

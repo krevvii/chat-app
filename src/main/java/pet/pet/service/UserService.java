@@ -5,7 +5,6 @@ import org.springframework.stereotype.Service;
 import pet.pet.controller.RegistrationRequest; 
 import pet.pet.model.User;
 import pet.pet.repository.UserRepository;
-
 import java.util.Set;
 
 @Service
@@ -19,20 +18,20 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
-
     public void register(RegistrationRequest request) {
         userRepository.findByUsername(request.getUsername()).ifPresent(user -> {
             throw new IllegalStateException("Пользователь с таким именем уже существует");
         });
 
+        userRepository.findByEmail(request.getEmail()).ifPresent(user -> {
+            throw new IllegalStateException("Пользователь с таким email уже существует");
+        });
+
         User newUser = new User();
         newUser.setUsername(request.getUsername());
-
-        String hashedPassword = passwordEncoder.encode(request.getPassword());
-        newUser.setPassword(hashedPassword);
-
-        newUser.setRoles(Set.of("ROLE_USER")); 
-
+        newUser.setEmail(request.getEmail());
+        newUser.setPassword(passwordEncoder.encode(request.getPassword()));
+        newUser.setRoles(Set.of("ROLE_USER"));
         userRepository.save(newUser);
     }
 }
