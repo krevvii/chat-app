@@ -14,7 +14,7 @@ public class RegistrationRequest {
     private String password;
 
     @NotBlank(message = "Email не может быть пустым")
-    @Email(message = "Введите корректный email")
+    @Email(regexp = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$", message = "Введите корректный email")
     private String email;
 
     public RegistrationRequest() {
