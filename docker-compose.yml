@@ -27,34 +27,43 @@ services:
     ports:
       - "5432:5432"
     environment:
+      # Создаем суперпользователя 'postgres' с этим паролем
       POSTGRES_PASSWORD: password
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    # НОВАЯ СЕКЦИЯ: Проверка готовности базы данных
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # СЕРВИС С ВАШИМ ПРИЛОЖЕНИЕМ
   app:
     build: .
     restart: on-failure
     ports:
       - "8080:8080"
-    # НОВАЯ СЕКЦИЯ: Указываем, что нужно дождаться готовности postgres
     depends_on:
       postgres:
         condition: service_healthy
       kafka:
-        condition: service_started # Kafka не имеет healthcheck, ждем просто запуска
-    # НОВАЯ СЕКЦИЯ: Передаем правильные адреса в приложение
+        condition: service_started
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/analytics
-      SPRING_DATASOURCE_USERNAME: user
+      # --- Подключение к Базе Данных ---
+      # Подключаемся как суперпользователь 'postgres' к системной базе 'postgres'
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres
+      SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+
+      # --- Подключение к Kafka ---
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_MAIN: my-app-topic
+      SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL: PLAINTEXT
       
+      # --- Настройки JWT ---
+      # Передаем их напрямую в приложение
+      JWT_SECRET: your_super_secret_key_that_should_be_long_enough_for_security
+      JWT_EXPIRATION: 86400000
+
 volumes:
   postgres_data:
