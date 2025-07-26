@@ -34,20 +34,26 @@ public class SecurityConfig {
        return config.getAuthenticationManager();
     }
 
-    @Bean
+@Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-                .cors(Customizer.withDefaults()) // Включаем CORS
+                .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/public/**",
                                 "/api/auth/**",
-                                // -- Пути для Swagger UI --
-                                "/v3/api-docs/**",
+                                // -- САМЫЙ ПОЛНЫЙ СПИСОК ПУТЕЙ ДЛЯ SWAGGER --
+                                "/swagger-ui.html",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                "/v3/api-docs",
+                                "/v3/api-docs/**",
+                                "/swagger-resources",
+                                "/swagger-resources/**",
+                                "/configuration/ui",
+                                "/configuration/security",
+                                "/webjars/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

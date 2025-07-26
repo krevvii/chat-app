@@ -1,23 +1,26 @@
 package pet.pet.security;
 
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
+import org.springframework.lang.NonNull;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Component;
 import pet.pet.config.JwtProperties;
 
-import java.nio.charset.StandardCharsets;
-import java.security.Key;
-import java.util.*;
+import javax.crypto.SecretKey;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
 public class JwtTokenProvider {
 
     private final JwtProperties jwtProperties;
-    private Key key;
+    private SecretKey key;
 
     public JwtTokenProvider(JwtProperties jwtProperties) {
         this.jwtProperties = jwtProperties;
@@ -25,63 +28,51 @@ public class JwtTokenProvider {
 
     @PostConstruct
     public void init() {
-        this.key = Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes(StandardCharsets.UTF_8));
+        this.key = Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes());
     }
 
-    public String generateToken(String username, Long userId, List<String> roles) {
+    public String generateToken(@NonNull String username, @NonNull Long userId, @NonNull List<String> roles) {
+        Claims claims = Jwts.claims().subject(username).build();
+        claims.put("userId", userId);
+        claims.put("roles", roles);
+
+        Date now = new Date();
+        Date validity = new Date(now.getTime() + jwtProperties.getExpiration());
+
         return Jwts.builder()
-                .setSubject(username)
-                .claim("userId", userId)
-                .claim("roles", roles)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + jwtProperties.getExpiration()))
-                .signWith(key, SignatureAlgorithm.HS512)
+                .claims(claims)
+                .issuedAt(now)
+                .expiration(validity)
+                .signWith(key, Jwts.SIG.HS512) // Используем новый API для подписи
                 .compact();
     }
 
-    public String getUsernameFromToken(String token) {
-        return getClaims(token).getSubject();
-    }
-
-    public Long getUserIdFromToken(String token) {
-        Claims claims = getClaims(token);
-        Object userId = claims.get("userId");
-        return userId instanceof Integer ? ((Integer) userId).longValue() : (Long) userId;
-    }
-
-    public boolean validateToken(String token) {
+    public boolean validateToken(@NonNull String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
-            return !getExpirationDateFromToken(token).before(new Date());
-        } catch (JwtException | IllegalArgumentException ex) {
-            System.out.println("Invalid JWT: " + ex.getMessage());
+            Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
+            return true;
+        } catch (Exception e) {
+            // Можно логировать ошибку e.getMessage()
             return false;
         }
     }
 
-    public Date getExpirationDateFromToken(String token) {
-        return getClaims(token).getExpiration();
+    public Claims getClaims(@NonNull String token) {
+        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
     }
 
-    public List<GrantedAuthority> getAuthorities(String token) {
-        Claims claims = getClaims(token);
-        Object rawRoles = claims.get("roles");
+    public String getUsernameFromToken(@NonNull String token) {
+        return getClaims(token).getSubject();
+    }
 
+    public List<GrantedAuthority> getAuthorities(@NonNull String token) {
+        Object rawRoles = getClaims(token).get("roles");
         if (rawRoles instanceof List<?>) {
             return ((List<?>) rawRoles).stream()
                     .filter(role -> role instanceof String)
                     .map(role -> new SimpleGrantedAuthority((String) role))
                     .collect(Collectors.toList());
         }
-
         return Collections.emptyList();
-    }
-
-    public Claims getClaims(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
     }
 }
